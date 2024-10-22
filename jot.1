@@ -1,0 +1,248 @@
+.TH JOT 1 "October 2024" "Version 0.1" "User Commands"
+.SH NAME
+jot \- multiline text editor using GNU Readline
+.SH SYNOPSIS
+.B jot
+.RI [ options ] [ file ]
+.SH DESCRIPTION
+.B jot
+is a simple multiline text editor using the GNU Readline library. It operates inline with the shell prompt, allowing you to enter and edit multiline text directly in the terminal without opening a full-screen editor. Essentially, \fBjot\fP functions like \fBcat\fP reading from standard input but with Readline support for interactive multiline editing.
+
+By default, \fBjot\fP reads input from the terminal and writes it to standard output. If a filename is provided (e.g., \fBjot file.txt\fP), it reads the file's contents into the editor, allowing you to edit and save changes back to the file.
+
+Even when output is redirected or piped, \fBjot\fP interacts with the user via \fI/dev/tty\fP, maintaining the interactive experience.
+
+.SH OPTIONS
+.TP
+.B \-e
+Start with an empty buffer when editing a file. Existing file contents are ignored and overwritten upon saving.
+
+.TP
+.B \-b \fIbanner\fP
+Display the specified \fIbanner\fP message before starting. Useful for providing instructions or context.
+
+.SH EXAMPLES
+Start \fBjot\fP and save the input to \fItest.txt\fP:
+
+.EX
+jot > test.txt
+.EE
+
+Open \fBjot\fP to edit \fIfile.txt\fP:
+
+.EX
+jot file.txt
+.EE
+
+Start \fBjot\fP with an empty buffer and save to \fIfile.txt\fP upon exit:
+
+.EX
+jot -e file.txt
+.EE
+
+.SH KEY BINDINGS
+\fBjot\fP defines and binds custom Readline functions to enhance multiline editing. The following functions are available, with their default key bindings shown in parentheses:
+
+Most default Readline bindings are available unless specified in the "Unbound Default Functions" section.
+
+.SS Exiting the Editor
+.TP
+.B custom-ctrl-d (C\-d)
+At the end of the buffer, invokes \fBaccept-line\fP to complete editing and accept the input. Otherwise, deletes the character under the cursor by calling \fBdelete-char\fP.
+
+.TP
+.B accept-line (C\-n)
+Completes editing and accepts the input.
+
+.SS Cursor Movement
+.TP
+.B insert-newline (Enter)
+Inserts a newline character at the cursor position.
+
+.TP
+.B beginning-of-line-multiline (C\-a, Home)
+Moves the cursor to the beginning of the current line.
+
+.TP
+.B end-of-line-multiline (C\-e, End)
+Moves the cursor to the end of the current line.
+
+.TP
+.B move-cursor-up (Up Arrow)
+Moves the cursor up one line.
+
+.TP
+.B move-cursor-down (Down Arrow)
+Moves the cursor down one line.
+
+.TP
+.B beginning-of-buffer (M\-<)
+Moves the cursor to the beginning of the text.
+
+.TP
+.B end-of-buffer (M\->)
+Moves the cursor to the end of the text.
+
+.SS Editing Text
+.TP
+.B kill-line-multiline (C\-k)
+Kills (cuts) text from the cursor to the end of the line.
+
+.TP
+.B kill-backward-line-multiline (C\-u)
+Kills (cuts) text from the beginning of the line to the cursor.
+
+.TP
+.B kill-whole-line-multiline (C\-w)
+Kills (cuts) the entire current line.
+
+.SS Unbound Default Functions
+To prevent interference with multiline editing, several default Readline functions are unbound in \fBjot\fP:
+
+.TP
+.B Completion functions
+Auto-completion and related functions are disabled.
+
+.TP
+.B History search functions
+Reverse and forward history searches are disabled.
+
+.TP
+.B Search functions
+Incremental search functions are disabled.
+
+.PP
+Unless specified above, other default Readline key bindings and functions are available for use.
+
+.SH VI MODE
+In Vi mode, \fBjot\fP defines and binds custom functions to replicate common Vi commands for multiline editing. The following functions are available, with their default key bindings shown in parentheses:
+
+.TP
+.B move-cursor-down (j)
+Moves the cursor down one line.
+
+.TP
+.B move-cursor-up (k)
+Moves the cursor up one line.
+
+.TP
+.B vi-join-lines (J)
+Joins the current line with the next line.
+
+.TP
+.B vi-insert-line-below (o)
+Inserts a new line below the current line and enters insert mode.
+
+.TP
+.B vi-insert-line-above (O)
+Inserts a new line above the current line and enters insert mode.
+
+.TP
+.B beginning-of-line-multiline (^)
+Moves to the beginning of the current line.
+
+.TP
+.B end-of-line-multiline ($)
+Moves to the end of the current line.
+
+.TP
+.B vi-goto-line (G)
+Goes to the specified line number or the end of the text.
+
+.TP
+.B vi-goto-first-line (gg)
+Goes to the beginning of the text.
+
+.TP
+.B vi-delete-current-line (dd)
+Deletes the current line.
+
+.TP
+.B vi-delete-to-end-of-line (D)
+Deletes from the cursor to the end of the line.
+
+To enable Vi mode, add the following to your \fI~/.inputrc\fP:
+
+.EX
+$if jot
+    set editing-mode vi
+$endif
+.EE
+
+.SH CONFIGURATION
+Customize \fBjot\fP's key bindings and behavior using the Readline initialization file (\fIthe inputrc file\fP), applying settings specifically for \fBjot\fP with conditional blocks.
+
+For example, to rebind the accept line key to \fBC\-x\fP, add:
+
+.EX
+$if jot
+    "\\C-x": accept-line
+$endif
+.EE
+
+To change the key binding for moving to the beginning of the line:
+
+.EX
+$if jot
+    "\\C-b": beginning-of-line-multiline
+$endif
+.EE
+
+.SH USING WITH GIT
+To use \fBjot\fP as your default Git editor:
+
+.EX
+git config --global core.editor jot
+.EE
+
+Or set the \fBEDITOR\fP environment variable:
+
+.EX
+export EDITOR=jot
+.EE
+
+Note: Git might display the message:
+
+.RS
+hint: Waiting for your editor to close the file...
+.RE
+
+Since \fBjot\fP operates inline in the terminal and doesn't open a separate window, this message causes display issues during editing. To suppress it:
+
+.EX
+git config --global advice.waitingForEditor false
+.EE
+
+This provides a cleaner experience when using \fBjot\fP as your Git editor.
+
+.SH BUGS
+.TP
+.B Vi Mode
+Vi mode is limited and doesn't fully implement all Vi commands.
+
+.TP
+.B Multibyte Unicode Support
+\fBjot\fP's custom navigation functions currently do not fully support multibyte Unicode characters; input is limited to single-byte characters.
+
+.TP
+.B Crash Recovery
+Unsaved changes may be lost in case of a crash; no effort is made to preserve contents.
+
+.TP
+.B Scrolling Large Text
+If input exceeds the terminal's visible area, display artifacts may occur. Press \fBC\-l\fP to refresh the display.
+
+.SH SEE ALSO
+.BR readline (3),
+.BR cat (1)
+
+.SH AUTHORS
+The idea for \fBjot\fP comes from an early implementation of multiline editing with Readline by Colm MacCárthaigh in the \fBc-hey\fP tool.
+
+This version of \fBjot\fP was written using GPT-4 by Periklis Akritidis.
+
+.SH REPORTING BUGS
+Report bugs or feature requests to \fBjot-bugs@akritidis.org\fP.
+
+.SH COPYRIGHT
+Copyright © 2024 Periklis Akritidis
