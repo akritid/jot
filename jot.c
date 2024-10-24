@@ -25,8 +25,6 @@
 #include <termios.h>   /* Used by disable_ctrl_u_kill_line() */
 #include <signal.h>
 #include <alloca.h>
-#include <wchar.h>
-#include <wctype.h>
 #include <assert.h>
 #include <sys/wait.h>  /* For waitpid */
 #include <fcntl.h>     /* For open flags */
@@ -138,27 +136,37 @@ jot_end_of_line(int count, int key)
 static int
 jot_kill_line(int count, int key)
 {
-	int buffer_len = rl_end;
 	int start = rl_point;
 	int end = rl_point;
+	int buffer_len = rl_end; /* Total length of the line buffer */
 
-	/* Find the end of the current line */
-	while (end < buffer_len) {
-		if (rl_line_buffer[end] == '\n') {
-			end++;
+	/* Save the current point */
+	int orig_point = rl_point;
+
+	/* Move the rl_point to the end of the current line, excluding the newline */
+	while (rl_point < buffer_len) {
+		if (rl_line_buffer[rl_point] == '\n') {
+			/* Do not include the newline character */
 			break;
 		}
-		rl_point = end;
+		/* Move forward one character (multibyte-aware) */
 		rl_forward_char(1, 0);
-		end = rl_point;
 	}
 
-	/* Kill text from start to end */
+	end = rl_point; /* Update the end position */
+
+	/* Restore rl_point to its original position */
+	rl_point = orig_point;
+
+	/* Delete text from start to end */
 	rl_delete_text(start, end);
-	rl_point = start;
-	rl_redisplay();
+	rl_point = start; /* Set cursor position back to start */
+	rl_redisplay();   /* Update the display */
+
 	return 0;
 }
+
+
 
 /* Function to restore terminal settings */
 static void
@@ -611,25 +619,32 @@ jot_vi_delete_to_end_of_line(int count, int key)
 	return 0;
 }
 
-
 /* Vi command to join lines ('J') */
 static int
 jot_vi_join_lines(int count, int key)
 {
+	rl_begin_undo_group();
+
 	while (count-- > 0) {
 		int buffer_len = rl_end;  /* rl_end is the length of the line buffer */
 		int start_pos = rl_point;
 
 		/* Move rl_point to the end of the current line */
 		while (rl_point < buffer_len) {
-			if (strncmp(rl_line_buffer + rl_point, "\n", 1) == 0) {
+			if (rl_line_buffer[rl_point] == '\n') {
 				break;
 			}
-			rl_forward_char(1, 0);  /* Move forward one character in a multibyte-aware way */
+			int saved_point = rl_point;
+			rl_forward_char(1, 0);  /* Move forward one character */
+			if (rl_point == saved_point) {
+				/* Can't move further */
+				break;
+			}
 		}
 
-		/* If we're at the end of the buffer, nothing to do */
-		if (rl_point >= buffer_len) {
+		/* Check if we have a newline to join with */
+		if (rl_point >= buffer_len || rl_line_buffer[rl_point] != '\n') {
+			rl_point = start_pos; /* Restore cursor position */
 			rl_ding(); /* Beep to indicate no action */
 			break;
 		}
@@ -638,61 +653,50 @@ jot_vi_join_lines(int count, int key)
 		rl_delete_text(rl_point, rl_point + 1);
 		buffer_len--;
 
-		/* Remove leading whitespace on the next line */
+		/* Remove leading ASCII spaces and tabs from the next line */
 		while (rl_point < buffer_len) {
-			char *current_char = rl_line_buffer + rl_point;
-			wchar_t wc;
-			mbstate_t state;
-			memset(&state, 0, sizeof(mbstate_t));
-			size_t bytes = mbrtowc(&wc, current_char, buffer_len - rl_point, &state);
-			if (bytes == (size_t)-1 || bytes == (size_t)-2)
-				break;  /* Invalid or incomplete multibyte character */
-			if (!iswspace(wc))
+			char c = rl_line_buffer[rl_point];
+			if (c != ' ' && c != '\t') {
 				break;
-			rl_delete_text(rl_point, rl_point + bytes);
-			buffer_len -= bytes;
+			}
+			rl_delete_text(rl_point, rl_point + 1);
+			buffer_len--;
 		}
 
-		/* Now, possibly insert a space if needed */
-		wchar_t before_char = L'\0', after_char = L'\0';
-		mbstate_t state;
+		/* Decide whether to insert a space */
+		char before_char = '\0', after_char = '\0';
 
-		/* Move back to get the character before the newline */
+		/* Get the character before the join */
 		if (rl_point > 0) {
 			int saved_point = rl_point;
-			rl_backward_char(1, 0);  /* Move back one character */
-			char *before_char_ptr = rl_line_buffer + rl_point;
-			memset(&state, 0, sizeof(mbstate_t));
-			size_t bytes = mbrtowc(&before_char, before_char_ptr, buffer_len - rl_point, &state);
-			if (bytes == (size_t)-1 || bytes == (size_t)-2)
-				before_char = L'\0';  /* Error or incomplete character */
-			rl_forward_char(1, 0);  /* Restore rl_point to original position */
+			rl_backward_char(1, 0);
+			before_char = rl_line_buffer[rl_point];
+			rl_point = saved_point; /* Restore rl_point */
 		}
 
-		/* Get the character after the newline (after removing leading whitespace) */
+		/* Get the character after the join */
 		if (rl_point < buffer_len) {
-			char *after_char_ptr = rl_line_buffer + rl_point;
-			memset(&state, 0, sizeof(mbstate_t));
-			size_t bytes = mbrtowc(&after_char, after_char_ptr, buffer_len - rl_point, &state);
-			if (bytes == (size_t)-1 || bytes == (size_t)-2)
-				after_char = L'\0';  /* Error or incomplete character */
+			after_char = rl_line_buffer[rl_point];
 		}
 
 		int need_space = 0;
-		if (!iswspace(before_char) && !iswspace(after_char) &&
-			before_char != L'\0' && after_char != L'\0') {
+		if (before_char != '\0' && after_char != '\0' &&
+			before_char != ' ' && after_char != ' ' &&
+			before_char != '\n' && after_char != '\n') {
 			need_space = 1;
 		}
 
 		if (need_space) {
 			rl_insert_text(" ");
 			buffer_len++;
-			/* rl_point is already advanced after insertion */
+			/* rl_point advances after insertion */
 		}
 
 		/* Optionally adjust cursor position */
 		rl_point = start_pos;
 	}
+
+	rl_end_undo_group();
 	rl_redisplay();
 	return 0;
 }
