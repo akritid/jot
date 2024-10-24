@@ -11,6 +11,7 @@
 
 - Multiline text editing in the shell session.
 - Supports Emacs and limited Vi modes.
+- Ability to invoke a full-screen editor during editing.
 - Customizable key bindings via Readline's `.inputrc` initialization file.
 - Can be used as the default editor in Git and other command-line tools.
 
@@ -85,27 +86,33 @@ jot -e file.txt
 
 ## Key Bindings
 
-`jot` supports various key bindings to enhance multiline editing. The default Readline key bindings are available unless specified otherwise.
+`jot` defines and binds custom Readline functions to enhance multiline editing. The following functions are available, with their default key bindings shown in parentheses. Most default Readline bindings are available unless specified in the "Unbound Default Functions" section.
+
 
 ### Exiting the Editor
 
-- `Ctrl+D`: At the end of the buffer, invokes `accept-line` to complete editing. Otherwise, deletes the character under the cursor.
-- `Ctrl+N`: Completes editing and accepts the input.
+- **`jot-custom-ctrl-d` (`C-d`)**: At the end of the buffer, invokes `accept-line` to complete editing and accept the input. Otherwise, deletes the character under the cursor by calling `delete-char`.
+- **`accept-line` (`C-N`)**: Completes editing and accepts the input.
+
+### Invoking External Editor
+
+- **`jot-invoke-fullscreen-editor` (`C-x C-e`)**: Invokes a full-screen editor to edit the current text. The editor used is determined by the `JOT_EDITOR` environment variable; if not set, it defaults to `vi`.
 
 ### Cursor Movement
 
-- `Enter`: Inserts a newline character.
-- `Ctrl+A`, `Home`: Moves to the beginning of the current line.
-- `Ctrl+E`, `End`: Moves to the end of the current line.
-- `Up Arrow`: Moves the cursor up one line.
-- `Down Arrow`: Moves the cursor down one line.
-- `Alt+<`: Moves to the beginning of the text.
-- `Alt+>`: Moves to the end of the text.
+- **`jot-insert-newline` (`Enter`)**: Inserts a newline character at the cursor position.
+- **`jot-beginning-of-line` (`C-a`, `Home`)**: Moves the cursor to the beginning of the current line.
+- **`jot-end-of-line` (`C-e`, `End`)**: Moves the cursor to the end of the current line.
+- **`jot-move-cursor-up` (`Up Arrow`)**: Moves the cursor up one line.
+- **`jot-move-cursor-down` (`Down Arrow`)**: Moves the cursor down one line.
+- **`beginning-of-buffer` (`M-<`)**: Moves the cursor to the beginning of the text.
+- **`end-of-buffer` (`M->`)**: Moves the cursor to the end of the text.
 
 ### Editing Text
 
-- `Ctrl+K`: Kills (cuts) text from the cursor to the end of the line.
-- `Ctrl+U`: Kills (cuts) text from the beginning of the line to the cursor.
+- **`jot-kill-line` (`Ctrl+K`)**: Kills (cuts) text from the cursor to the end of the line.
+- **`jot-kill-backward-line` (`Ctrl+U`)**: Kills (cuts) text from the beginning of the line to the cursor.
+- **`jot-kill-whole-line`**: Kills (cuts) the entire current line.
 
 ### Unbound Default Functions
 
@@ -115,21 +122,26 @@ To prevent interference with multiline editing, several default Readline functio
 - **History search functions**: Reverse and forward history searches are disabled.
 - **Search functions**: Incremental search functions are disabled.
 
+Unless specified above, other default Readline key bindings and functions are available for use.
+
 ### Vi Mode
 
-In Vi mode, `jot` supports limited Vi commands for multiline editing.
+In Vi mode, `jot` defines and binds custom functions to replicate common Vi commands for multiline editing. The following functions are available, with their default key bindings shown in parentheses:
 
-- `j`: Moves the cursor down one line.
-- `k`: Moves the cursor up one line.
-- `J`: Joins the current line with the next line.
-- `o`: Inserts a new line below the current line and enters insert mode.
-- `O`: Inserts a new line above the current line and enters insert mode.
-- `^`: Moves to the beginning of the current line.
-- `$`: Moves to the end of the current line.
-- `G`: Goes to the specified line number or the end of the text.
-- `gg`: Goes to the beginning of the text.
-- `dd`: Deletes the current line.
-- `D`: Deletes from the cursor to the end of the line.
+- **`jot-move-cursor-down` (`j`)**: Moves the cursor down one line.
+- **`jot-move-cursor-up` (`k`)**: Moves the cursor up one line.
+- **`jot-vi-join-lines` (`J`)**: Joins the current line with the next line.
+- **`jot-vi-insert-line-below` (`o`)**: Inserts a new line below the current line and enters insert mode.
+- **`jot-vi-insert-line-above` (`O`)**: Inserts a new line above the current line and enters insert mode.
+- **`jot-beginning-of-line` (`^`)**: Moves to the beginning of the current line.
+- **`jot-end-of-line` (`$`)**: Moves to the end of the current line.
+- **`jot-vi-goto-line` (`G`)**: Goes to the specified line number or the end of the text.
+- **`jot-vi-goto-first-line` (`gg`)**: Goes to the beginning of the text.
+- **`jot-vi-delete-current-line` (`dd`)**: Deletes the current line.
+- **`jot-vi-delete-to-end-of-line` (`D`)**: Deletes from the cursor to the end of the line.
+- **`jot-invoke-fullscreen-editor` (`v`)**: Invokes a full-screen editor to edit the current text. The editor used is determined by the `JOT_EDITOR` environment variable; if not set, it defaults to `vi`.
+
+
 
 To enable Vi mode, add the following to your `~/.inputrc`:
 
@@ -143,6 +155,9 @@ $endif
 
 You can customize `jot`'s key bindings and behavior using the Readline initialization file (`inputrc`), applying settings specifically for `jot` with conditional blocks.
 
+Customize `jot`'s key bindings and behavior using the Readline initialization file (`inputrc`), applying settings specifically for `jot` with conditional blocks.
+
+
 For example, to rebind the accept line key to `Ctrl+X`, add:
 
 ```bash
@@ -151,13 +166,7 @@ $if jot
 $endif
 ```
 
-To change the key binding for moving to the beginning of the line:
-
-```bash
-$if jot
-    "\C-b": beginning-of-line-multiline
-$endif
-```
+By default, the full-screen editor invoked by `jot` when pressing `Ctrl+X Ctrl+E` is `vi`. You can change this by setting the `JOT_EDITOR` environment variable to the editor of your choice.
 
 ## Using with Git
 
@@ -167,11 +176,7 @@ To use `jot` as your default Git editor:
 git config --global core.editor jot
 ```
 
-Or set the `EDITOR` environment variable:
-
-```bash
-export EDITOR=jot
-```
+Or set the `GIT_EDITOR` environment variable.
 
 **Note**: Git might display the message:
 
@@ -206,5 +211,5 @@ This version of `jot` was written using GPT-4 by Periklis Akritidis.
 
 ## Reporting Bugs
 
-Report bugs or feature requests to [jot-bugs@akritidis.org](mailto:jot-bugs@akritidis.org).
+Report bugs to [jot-bugs@akritidis.org](mailto:jot-bugs@akritidis.org).
 

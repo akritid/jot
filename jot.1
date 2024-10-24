@@ -1,4 +1,4 @@
-.TH JOT 1 "October 2024" "Version 0.1" "User Commands"
+.TH JOT 1 "October 2024" "Version 0.2" "User Commands"
 .SH NAME
 jot \- multiline text editor using GNU Readline
 .SH SYNOPSIS
@@ -11,6 +11,8 @@ is a simple multiline text editor using the GNU Readline library. It operates in
 By default, \fBjot\fP reads input from the terminal and writes it to standard output. If a filename is provided (e.g., \fBjot file.txt\fP), it reads the file's contents into the editor, allowing you to edit and save changes back to the file.
 
 Even when output is redirected or piped, \fBjot\fP interacts with the user via \fI/dev/tty\fP, maintaining the interactive experience.
+
+As an escape hatch to inline editing, \fBjot\fP allows you to invoke a full-screen editor. This can be useful when you need more advanced editing capabilities.
 
 .SH OPTIONS
 .TP
@@ -47,32 +49,37 @@ Most default Readline bindings are available unless specified in the "Unbound De
 
 .SS Exiting the Editor
 .TP
-.B custom-ctrl-d (C\-d)
+.B jot-custom-ctrl-d (C\-d)
 At the end of the buffer, invokes \fBaccept-line\fP to complete editing and accept the input. Otherwise, deletes the character under the cursor by calling \fBdelete-char\fP.
 
 .TP
 .B accept-line (C\-n)
 Completes editing and accepts the input.
 
+.SS Invoking External Editor
+.TP
+.B invoke-fullscreen-editor (C\-x C\-e)
+Invokes a full-screen editor to edit the current text. The editor used is determined by the \fBJOT_EDITOR\fP environment variable; if not set, it defaults to \fBvi\fP.
+
 .SS Cursor Movement
 .TP
-.B insert-newline (Enter)
+.B jot-insert-newline (Enter)
 Inserts a newline character at the cursor position.
 
 .TP
-.B beginning-of-line-multiline (C\-a, Home)
+.B jot-beginning-of-line (C\-a, Home)
 Moves the cursor to the beginning of the current line.
 
 .TP
-.B end-of-line-multiline (C\-e, End)
+.B jot-end-of-line (C\-e, End)
 Moves the cursor to the end of the current line.
 
 .TP
-.B move-cursor-up (Up Arrow)
+.B jot-move-cursor-up (Up Arrow)
 Moves the cursor up one line.
 
 .TP
-.B move-cursor-down (Down Arrow)
+.B jot-move-cursor-down (Down Arrow)
 Moves the cursor down one line.
 
 .TP
@@ -85,15 +92,15 @@ Moves the cursor to the end of the text.
 
 .SS Editing Text
 .TP
-.B kill-line-multiline (C\-k)
+.B jot-kill-line (C\-k)
 Kills (cuts) text from the cursor to the end of the line.
 
 .TP
-.B kill-backward-line-multiline (C\-u)
+.B jot-kill-backward-line (C\-u)
 Kills (cuts) text from the beginning of the line to the cursor.
 
 .TP
-.B kill-whole-line-multiline
+.B jot-kill-whole-line
 Kills (cuts) the entire current line.
 
 .SS Unbound Default Functions
@@ -118,47 +125,47 @@ Unless specified above, other default Readline key bindings and functions are av
 In Vi mode, \fBjot\fP defines and binds custom functions to replicate common Vi commands for multiline editing. The following functions are available, with their default key bindings shown in parentheses:
 
 .TP
-.B move-cursor-down (j)
+.B jot-move-cursor-down (j)
 Moves the cursor down one line.
 
 .TP
-.B move-cursor-up (k)
+.B jot-move-cursor-up (k)
 Moves the cursor up one line.
 
 .TP
-.B vi-join-lines (J)
+.B jot-vi-join-lines (J)
 Joins the current line with the next line.
 
 .TP
-.B vi-insert-line-below (o)
+.B jot-vi-insert-line-below (o)
 Inserts a new line below the current line and enters insert mode.
 
 .TP
-.B vi-insert-line-above (O)
+.B jot-vi-insert-line-above (O)
 Inserts a new line above the current line and enters insert mode.
 
 .TP
-.B beginning-of-line-multiline (^)
+.B jot-beginning-of-line (^)
 Moves to the beginning of the current line.
 
 .TP
-.B end-of-line-multiline ($)
+.B jot-end-of-line ($)
 Moves to the end of the current line.
 
 .TP
-.B vi-goto-line (G)
+.B jot-vi-goto-line (G)
 Goes to the specified line number or the end of the text.
 
 .TP
-.B vi-goto-first-line (gg)
+.B jot-vi-goto-first-line (gg)
 Goes to the beginning of the text.
 
 .TP
-.B vi-delete-current-line (dd)
+.B jot-vi-delete-current-line (dd)
 Deletes the current line.
 
 .TP
-.B vi-delete-to-end-of-line (D)
+.B jot-vi-delete-to-end-of-line (D)
 Deletes from the cursor to the end of the line.
 
 To enable Vi mode, add the following to your \fI~/.inputrc\fP:
@@ -188,6 +195,8 @@ $if jot
 $endif
 .EE
 
+By default, the full-screen editor invoked by \fBjot\fP when pressing \fBC\-x C\-e\fP is \fBvi\fP. You can change this by setting the \fBJOT_EDITOR\fP environment variable to the editor of your choice.
+
 .SH USING WITH GIT
 To use \fBjot\fP as your default Git editor:
 
@@ -195,11 +204,7 @@ To use \fBjot\fP as your default Git editor:
 git config --global core.editor jot
 .EE
 
-Or set the \fBEDITOR\fP environment variable:
-
-.EX
-export EDITOR=jot
-.EE
+Or set the \fBGIT_EDITOR\fP environment variable.
 
 Note: Git might display the message:
 
@@ -222,7 +227,7 @@ Vi mode is limited and doesn't fully implement all Vi commands.
 
 .TP
 .B Multibyte Unicode Support
-\fBjot\fP's custom navigation functions currently do not fully support multibyte Unicode characters; input is limited to single-byte characters.
+\fBjot\fP's custom navigation functions currently do not fully support multibyte Unicode characters.
 
 .TP
 .B Crash Recovery
@@ -242,7 +247,10 @@ The idea for \fBjot\fP comes from an early implementation of multiline editing w
 This version of \fBjot\fP was written using GPT-4 by Periklis Akritidis.
 
 .SH REPORTING BUGS
-Report bugs or feature requests to \fBjot-bugs@akritidis.org\fP.
+Report bugs to \fBjot-bugs@akritidis.org\fP.
 
 .SH COPYRIGHT
 Copyright © 2024 Periklis Akritidis
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+

@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([jot], [0.1], [jot-bugs@akritidis.org])
+AC_INIT([jot], [0.2], [jot-bugs@akritidis.org])
 AM_INIT_AUTOMAKE([foreign])
 AC_CONFIG_SRCDIR([jot.c])
 AC_CONFIG_HEADERS([config.h])
