@@ -616,6 +616,8 @@ jot_vi_delete_to_end_of_line(int count, int key)
 static int
 jot_vi_join_lines(int count, int key)
 {
+	rl_begin_undo_group();
+
 	while (count-- > 0) {
 		int buffer_len = rl_end;  /* rl_end is the length of the line buffer */
 		int start_pos = rl_point;
@@ -693,6 +695,8 @@ jot_vi_join_lines(int count, int key)
 		/* Optionally adjust cursor position */
 		rl_point = start_pos;
 	}
+
+	rl_end_undo_group();
 	rl_redisplay();
 	return 0;
 }
