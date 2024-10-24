@@ -223,11 +223,11 @@ This provides a cleaner experience when using \fBjot\fP as your Git editor.
 .SH BUGS
 .TP
 .B Vi Mode
-Vi mode is limited and doesn't fully implement all Vi commands.
+Vi mode is very limited and doesn't fully implement all Vi commands.
 
 .TP
 .B Multibyte Unicode Support
-\fBjot\fP's custom navigation functions currently do not fully support multibyte Unicode characters.
+While some key functions support multibyte Unicode characters, not all of \fBjot\fP's functions fully support them yet. However, all default Readline functions do have Unicode support.
 
 .TP
 .B Crash Recovery
@@ -236,6 +236,10 @@ Unsaved changes may be lost in case of a crash; no effort is made to preserve co
 .TP
 .B Scrolling Large Text
 If input exceeds the terminal's visible area, display artifacts may occur. Press \fBC\-l\fP to refresh the display.
+
+.TP
+.B Count Arguments
+Not all of \fBjot\fP's functions support a count argument.
 
 .SH SEE ALSO
 .BR readline (3),

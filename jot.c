@@ -25,6 +25,8 @@
 #include <termios.h>   /* Used by disable_ctrl_u_kill_line() */
 #include <signal.h>
 #include <alloca.h>
+#include <wchar.h>
+#include <wctype.h>
 #include <assert.h>
 #include <sys/wait.h>  /* For waitpid */
 #include <fcntl.h>     /* For open flags */
@@ -95,14 +97,21 @@ bind_func_in_insert_maps(const char *seq, rl_command_func_t *func)
 	rl_bind_keyseq_in_map(seq, func, vi_insertion_keymap);
 }
 
-
-
 static int
 jot_beginning_of_line(int count, int key)
 {
-	/* Find the start of the current line */
-	while (rl_point > 0 && rl_line_buffer[rl_point - 1] != '\n') {
-		rl_point--;
+	/* Move to the start of the current line */
+	while (rl_point > 0) {
+		/* Peek at previous character */
+		int saved_point = rl_point;
+		rl_backward_char(1, 0);
+		if (rl_line_buffer[rl_point] == '\n') {
+			rl_forward_char(1, 0);
+			break;
+		}
+		if (rl_point == 0 || rl_point == saved_point) {
+			break;
+		}
 	}
 	rl_redisplay();
 	return 0;
@@ -111,10 +120,16 @@ jot_beginning_of_line(int count, int key)
 static int
 jot_end_of_line(int count, int key)
 {
-	int buffer_len = strlen(rl_line_buffer);
+	int buffer_len = rl_end; /* rl_end is the length of the line buffer */
 	/* Move rl_point to the end of the current line or buffer */
-	while (rl_point < buffer_len && rl_line_buffer[rl_point] != '\n') {
-		rl_point++;
+	while (rl_point < buffer_len) {
+		if (rl_line_buffer[rl_point] == '\n') {
+			break;
+		}
+		rl_forward_char(1, 0);
+		if (rl_point >= buffer_len) {
+			break;
+		}
 	}
 	rl_redisplay();
 	return 0;
@@ -123,15 +138,24 @@ jot_end_of_line(int count, int key)
 static int
 jot_kill_line(int count, int key)
 {
-	int buffer_len = strlen(rl_line_buffer);
+	int buffer_len = rl_end;
 	int start = rl_point;
 	int end = rl_point;
+
 	/* Find the end of the current line */
-	while (end < buffer_len && rl_line_buffer[end] != '\n') {
-		end++;
+	while (end < buffer_len) {
+		if (rl_line_buffer[end] == '\n') {
+			end++;
+			break;
+		}
+		rl_point = end;
+		rl_forward_char(1, 0);
+		end = rl_point;
 	}
+
 	/* Kill text from start to end */
-	rl_kill_text(start, end);
+	rl_delete_text(start, end);
+	rl_point = start;
 	rl_redisplay();
 	return 0;
 }
@@ -330,85 +354,146 @@ static int
 jot_move_cursor_up(int count, int key)
 {
 	while (count-- > 0) {
-		int current_pos = rl_point;
-		int line_start = current_pos;
+		int orig_point = rl_point;
 		int line_col = 0;
 
-		/* Find the start of the current line */
-		while (line_start > 0 && rl_line_buffer[line_start - 1] != '\n') {
-			line_start--;
+		/* Move to the start of the current line */
+		while (rl_point > 0) {
+			rl_backward_char(1, 0);
+			if (rl_line_buffer[rl_point] == '\n') {
+				rl_forward_char(1, 0);
+				break;
+			}
 			line_col++;
 		}
 
-		/* If we're at the first line, do nothing */
-		if (line_start == 0) {
+		/* If we're at the beginning of the buffer, ring bell and restore position */
+		if (rl_point == 0) {
+			rl_point = orig_point;
 			rl_ding();
 			break;
 		}
 
-		/* Find the end of the previous line */
-		int prev_line_end = line_start - 1;
+		/* Move back over the newline character to the end of the previous line */
+		rl_backward_char(1, 0);
 
-		/* Find the start of the previous line */
-		int prev_line_start = prev_line_end;
-		while (prev_line_start > 0 && rl_line_buffer[prev_line_start - 1] != '\n') {
-			prev_line_start--;
+		/* Move to the start of the previous line */
+		while (rl_point > 0) {
+			rl_backward_char(1, 0);
+			if (rl_line_buffer[rl_point] == '\n') {
+				rl_forward_char(1, 0);
+				break;
+			}
 		}
 
-		/* Compute the column position in the previous line */
-		int prev_line_len = prev_line_end - prev_line_start;
-		int new_col = (line_col < prev_line_len) ? line_col : prev_line_len;
-
-		/* Set the new cursor position */
-		rl_point = prev_line_start + new_col;
+		/* Move to the calculated column in the previous line */
+		for (int i = 0; i < line_col; i++) {
+			if (rl_line_buffer[rl_point] == '\n' || rl_point >= rl_end) {
+				break;
+			}
+			rl_forward_char(1, 0);
+		}
 	}
 	rl_redisplay();
 	return 0;
 }
 
-/* Function to move the cursor down 'count' lines */
+/* Function to move the cursor down count lines */
 static int
 jot_move_cursor_down(int count, int key)
 {
 	while (count-- > 0) {
-		int buffer_len = strlen(rl_line_buffer);
-		int current_pos = rl_point;
-		int line_start = current_pos;
+		int buffer_len = rl_end; /* Total number of characters in the buffer */
+		int orig_point = rl_point; /* Save the original cursor position */
+		int line_start = rl_point;
 		int line_col = 0;
 
 		/* Find the start of the current line */
-		while (line_start > 0 && rl_line_buffer[line_start - 1] != '\n') {
-			line_start--;
+		rl_point = line_start;
+		while (rl_point > 0) {
+			int saved_point = rl_point;
+			rl_backward_char(1, 0); /* Move back one character */
+			if (rl_line_buffer[rl_point] == '\n') {
+				rl_forward_char(1, 0); /* Move forward to the first character of the current line */
+				break;
+			}
+			if (rl_point == saved_point) {
+				/* Can't move further back */
+				break;
+			}
+			line_start = rl_point;
 			line_col++;
 		}
 
 		/* Find the end of the current line */
-		int line_end = current_pos;
-		while (line_end < buffer_len && rl_line_buffer[line_end] != '\n') {
-			line_end++;
+		int line_end = rl_point;
+		rl_point = line_end;
+		while (rl_point < buffer_len) {
+			if (rl_line_buffer[rl_point] == '\n') {
+				break;
+			}
+			int saved_point = rl_point;
+			rl_forward_char(1, 0); /* Move forward one character */
+			if (rl_point == saved_point) {
+				/* Can't move forward */
+				break;
+			}
+			line_end = rl_point;
 		}
 
-		/* If we're at the last line, do nothing */
+		/* Check if we're at the last line */
 		if (line_end >= buffer_len) {
-			rl_ding();
+			rl_point = orig_point; /* Restore original position */
+			rl_ding();			 /* Beep to indicate no more lines below */
 			break;
 		}
 
 		/* Move to the start of the next line */
-		int next_line_start = line_end + 1;
+		rl_point = line_end;
+		if (rl_point < buffer_len && rl_line_buffer[rl_point] == '\n') {
+			rl_forward_char(1, 0); /* Move past the newline character */
+		}
+
+		int next_line_start = rl_point;
 
 		/* Find the end of the next line */
 		int next_line_end = next_line_start;
-		while (next_line_end < buffer_len && rl_line_buffer[next_line_end] != '\n') {
-			next_line_end++;
+		rl_point = next_line_start;
+		while (rl_point < buffer_len) {
+			if (rl_line_buffer[rl_point] == '\n') {
+				break;
+			}
+			int saved_point = rl_point;
+			rl_forward_char(1, 0);
+			if (rl_point == saved_point) {
+				/* Can't move forward */
+				break;
+			}
+			next_line_end = rl_point;
 		}
 
-		/* Compute the column position in the next line */
-		int next_line_len = next_line_end - next_line_start;
-		int new_col = (line_col < next_line_len) ? line_col : next_line_len;
+		/* Compute the column position in the next line (line_col may exceed next_line_length) */
+		int next_line_length = next_line_end - next_line_start;
 
-		/* Set the new cursor position */
-		rl_point = next_line_start + new_col;
+		int target_col = (line_col < next_line_length) ? line_col : next_line_length;
+
+		/* Move to the calculated column in the next line */
+		rl_point = next_line_start;
+		for (int i = 0; i < target_col && rl_point < next_line_end; i++) {
+			if (rl_line_buffer[rl_point] == '\n') {
+				break;
+			}
+			int saved_point = rl_point;
+			rl_forward_char(1, 0);
+			if (rl_point == saved_point) {
+				/* Can't move forward */
+				break;
+			}
+		}
+		/* If we moved past the end of the line, adjust rl_point back */
+		if (rl_point > next_line_end) {
+			rl_point = next_line_end;
+		}
 	}
 	rl_redisplay();
 	return 0;
@@ -526,55 +611,87 @@ jot_vi_delete_to_end_of_line(int count, int key)
 	return 0;
 }
 
+
 /* Vi command to join lines ('J') */
 static int
 jot_vi_join_lines(int count, int key)
 {
 	while (count-- > 0) {
-		int buffer_len = strlen(rl_line_buffer);
-		int pos = rl_point;
+		int buffer_len = rl_end;  /* rl_end is the length of the line buffer */
+		int start_pos = rl_point;
 
-		/* Find the end of the current line */
-		while (pos < buffer_len && rl_line_buffer[pos] != '\n') {
-			pos++;
+		/* Move rl_point to the end of the current line */
+		while (rl_point < buffer_len) {
+			if (strncmp(rl_line_buffer + rl_point, "\n", 1) == 0) {
+				break;
+			}
+			rl_forward_char(1, 0);  /* Move forward one character in a multibyte-aware way */
 		}
 
 		/* If we're at the end of the buffer, nothing to do */
-		if (pos >= buffer_len) {
+		if (rl_point >= buffer_len) {
 			rl_ding(); /* Beep to indicate no action */
 			break;
 		}
 
 		/* Delete the newline character */
-		rl_delete_text(pos, pos + 1);
+		rl_delete_text(rl_point, rl_point + 1);
 		buffer_len--;
 
+		/* Remove leading whitespace on the next line */
+		while (rl_point < buffer_len) {
+			char *current_char = rl_line_buffer + rl_point;
+			wchar_t wc;
+			mbstate_t state;
+			memset(&state, 0, sizeof(mbstate_t));
+			size_t bytes = mbrtowc(&wc, current_char, buffer_len - rl_point, &state);
+			if (bytes == (size_t)-1 || bytes == (size_t)-2)
+				break;  /* Invalid or incomplete multibyte character */
+			if (!iswspace(wc))
+				break;
+			rl_delete_text(rl_point, rl_point + bytes);
+			buffer_len -= bytes;
+		}
+
 		/* Now, possibly insert a space if needed */
-		char before_char = (pos > 0) ? rl_line_buffer[pos - 1] : '\0';
-		char after_char = (pos < buffer_len) ? rl_line_buffer[pos] : '\0';
+		wchar_t before_char = L'\0', after_char = L'\0';
+		mbstate_t state;
+
+		/* Move back to get the character before the newline */
+		if (rl_point > 0) {
+			int saved_point = rl_point;
+			rl_backward_char(1, 0);  /* Move back one character */
+			char *before_char_ptr = rl_line_buffer + rl_point;
+			memset(&state, 0, sizeof(mbstate_t));
+			size_t bytes = mbrtowc(&before_char, before_char_ptr, buffer_len - rl_point, &state);
+			if (bytes == (size_t)-1 || bytes == (size_t)-2)
+				before_char = L'\0';  /* Error or incomplete character */
+			rl_forward_char(1, 0);  /* Restore rl_point to original position */
+		}
+
+		/* Get the character after the newline (after removing leading whitespace) */
+		if (rl_point < buffer_len) {
+			char *after_char_ptr = rl_line_buffer + rl_point;
+			memset(&state, 0, sizeof(mbstate_t));
+			size_t bytes = mbrtowc(&after_char, after_char_ptr, buffer_len - rl_point, &state);
+			if (bytes == (size_t)-1 || bytes == (size_t)-2)
+				after_char = L'\0';  /* Error or incomplete character */
+		}
 
 		int need_space = 0;
-		if (!isspace(before_char) && !isspace(after_char) &&
-			before_char != '\0' && after_char != '\0' &&
-			!ispunct(before_char) && !ispunct(after_char)) {
+		if (!iswspace(before_char) && !iswspace(after_char) &&
+			before_char != L'\0' && after_char != L'\0') {
 			need_space = 1;
 		}
 
 		if (need_space) {
-			rl_point = pos;
 			rl_insert_text(" ");
 			buffer_len++;
-			pos++;
+			/* rl_point is already advanced after insertion */
 		}
 
-		/* Remove leading whitespace on the next line */
-		while (pos < buffer_len && isspace(rl_line_buffer[pos])) {
-			rl_delete_text(pos, pos + 1);
-			buffer_len--;
-		}
-
-		/* Adjust cursor position */
-		rl_point = pos;
+		/* Optionally adjust cursor position */
+		rl_point = start_pos;
 	}
 	rl_redisplay();
 	return 0;

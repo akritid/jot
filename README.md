@@ -59,6 +59,16 @@ make
 sudo make install
 ```
 
+### Avoiding Name Conflicts
+
+To install `jot` with a different executable name, you can use the `--program-prefix`, `--program-suffix`, or `--program-transform-name` options with the `configure` script.
+
+For example, to add a suffix to the executable name:
+
+```bash
+./configure --program-suffix=-editor
+```
+
 ## Usage
 
 Start `jot` and redirect the input to a file:
@@ -194,10 +204,13 @@ This provides a cleaner experience when using `jot` as your Git editor.
 
 ## Limitations
 
-- **Vi Mode**: Vi mode is limited and doesn't fully implement all Vi commands.
-- **Multibyte Unicode Support**: `jot`'s custom navigation functions currently do not fully support multibyte Unicode characters; input is limited to single-byte characters.
+This version of `jot` is experimental and is intended to assess the tool's utility. It comes with several limitations and may not yet be suitable for all use cases.
+
+- **Vi Mode**: Vi mode is very limited and doesn't fully implement all Vi commands.
+- **Multibyte Unicode Support**: While some key functions support multibyte Unicode characters, not all of `jot`'s functions fully support them yet. However, all default Readline functions do have Unicode support.
 - **Crash Recovery**: Unsaved changes may be lost in case of a crash; no effort is made to preserve contents.
 - **Scrolling Large Text**: If input exceeds the terminal's visible area, display artifacts may occur. Press `Ctrl+L` to refresh the display.
+- **In-Memory Editing**: Holds the entire text in memory, making it unsuitable for large files.
 
 ## License
 
@@ -207,7 +220,7 @@ This provides a cleaner experience when using `jot` as your Git editor.
 
 The idea for `jot` comes from an early implementation of multiline editing with Readline by [Colm MacCárthaigh](https://github.com/colmmacc) in the `c-hey` tool.
 
-This version of `jot` was written using GPT-4 by Periklis Akritidis.
+This version of `jot` was written using GPT-4 by Periklis Akritidis, through iterative code reviews on a single-file implementation.
 
 ## Reporting Bugs
 
