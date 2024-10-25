@@ -1034,7 +1034,6 @@ main(int argc, char **argv)
 	int opt_e = 0;       /* Whether the -e option is specified */
 	int opt;
 	char *input = NULL;
-	FILE *tty_in = NULL, *tty_out = NULL;
 	FILE *file_write = NULL;
 	FILE *orig_stdout = stdout;
 	int exit_status = EXIT_SUCCESS;
@@ -1226,8 +1225,8 @@ main(int argc, char **argv)
 
 	/* Print the banner if it's not an empty string */
 	if (banner && banner[0] != '\0') {
-		fprintf(tty_out, "%s\n", banner);
-		fflush(tty_out);
+		printf("%s\n", banner);
+		fflush(stdout);
 	}
 	/* Prompt for input */
 	if ((input = readline("")) != NULL) {
@@ -1266,10 +1265,6 @@ exit_program:
 	/* Cleanup resources */
 	free(input);
 	free(file_contents);
-	if (tty_in)
-		fclose(tty_in);
-	if (tty_out)
-		fclose(tty_out);
 	if (file_write)
 		fclose(file_write);
 
