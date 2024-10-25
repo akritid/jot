@@ -6,7 +6,7 @@ jot \- multiline text editor using GNU Readline
 .RI [ options ] [ file ]
 .SH DESCRIPTION
 .B jot
-is a simple multiline text editor using the GNU Readline library. It operates inline with the shell prompt, allowing you to enter and edit multiline text directly in the terminal without opening a full-screen editor. Essentially, \fBjot\fP functions like \fBcat\fP reading from standard input but with Readline support for interactive multiline editing.
+is a simple multiline text editor using the GNU Readline library. It operates inline with the shell prompt, allowing you to enter and edit multiline text directly in the terminal without opening a full-screen editor. Essentially, \fBjot\fP functions like \fBcat\fP but with Readline support for interactive multiline editing.
 
 By default, \fBjot\fP reads input from the terminal and writes it to standard output. If a filename is provided (e.g., \fBjot file.txt\fP), it reads the file's contents into the editor, allowing you to edit and save changes back to the file.
 
@@ -16,12 +16,16 @@ As an escape hatch to inline editing, \fBjot\fP allows you to invoke a full-scre
 
 .SH OPTIONS
 .TP
-.B \-e
+.B \-e, \-\-empty
 Start with an empty buffer when editing a file. Existing file contents are ignored and overwritten upon saving.
 
 .TP
-.B \-b \fIbanner\fP
+.B \-b \fIbanner\fP, \-\-banner \fIbanner\fP
 Display the specified \fIbanner\fP message before starting. Useful for providing instructions or context.
+
+.TP
+.B \-p, \-\-pipe
+Read input from standard input instead of from a file. This allows \fBjot\fP to operate within shell pipelines by reading input directly from standard input.
 
 .SH EXAMPLES
 Start \fBjot\fP and save the input to \fItest.txt\fP:
@@ -40,6 +44,12 @@ Start \fBjot\fP with an empty buffer and save to \fIfile.txt\fP upon exit:
 
 .EX
 jot -e file.txt
+.EE
+
+Use \fBjot\fP in a pipeline to edit the output of \fIsome_command\fP and save to \fIoutput.txt\fP:
+
+.EX
+some_command | jot -p > output.txt
 .EE
 
 .SH KEY BINDINGS
@@ -257,4 +267,3 @@ Report bugs to \fBjot-bugs@akritidis.org\fP.
 Copyright © 2024 Periklis Akritidis
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
-

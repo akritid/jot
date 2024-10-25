@@ -29,6 +29,7 @@
 #include <sys/wait.h>  /* For waitpid */
 #include <fcntl.h>     /* For open flags */
 #include <readline/readline.h>
+#include <getopt.h>
 
 #define DEFAULT_BANNER ""
 #define PROGRAM_NAME "jot"
@@ -167,7 +168,6 @@ jot_kill_line(int count, int key)
 }
 
 
-
 /* Function to restore terminal settings */
 static void
 restore_terminal_settings(void)
@@ -185,7 +185,7 @@ restore_terminal_settings(void)
 		perror("tcsetattr");
 		close(fd);
 		return;
-		}
+	}
 	termios_saved = 0; /* Reset the flag */
 		close(fd);
 	}
@@ -253,42 +253,73 @@ disable_ctrl_u_kill_line(void)
 	close(fd);
 }
 
-static FILE *
-redirect_stdio_to_tty(void)
+/* 
+ * Function to redirect stdio to /dev/tty and save original stdin and stdout.
+ * Returns 0 on success, -1 on error.
+ */
+static int
+redirect_stdio_to_tty(FILE **orig_stdout, FILE **orig_stdin)
 {
 	/* Save the original stdout */
 	int orig_stdout_fd = dup(STDOUT_FILENO);
 	if (orig_stdout_fd == -1) {
 		perror("dup STDOUT_FILENO");
-		_exit(EXIT_FAILURE);
+		return -1;
 	}
 
-	FILE *orig_stdout = fdopen(orig_stdout_fd, "w");
-	if (orig_stdout == NULL) {
+	*orig_stdout = fdopen(orig_stdout_fd, "w");
+	if (*orig_stdout == NULL) {
 		perror("fdopen orig_stdout_fd");
 		close(orig_stdout_fd);
-		_exit(EXIT_FAILURE);
+		return -1;
+	}
+
+	/* Save the original stdin */
+	int orig_stdin_fd = dup(STDIN_FILENO);
+	if (orig_stdin_fd == -1) {
+		perror("dup STDIN_FILENO");
+		fclose(*orig_stdout);
+		return -1;
+	}
+
+	*orig_stdin = fdopen(orig_stdin_fd, "r");
+	if (*orig_stdin == NULL) {
+		perror("fdopen orig_stdin_fd");
+		close(orig_stdin_fd);
+		fclose(*orig_stdout);
+		return -1;
 	}
 
 	/* Open /dev/tty for input and output */
 	int tty_fd = open("/dev/tty", O_RDWR);
 	if (tty_fd == -1) {
 		perror("open /dev/tty");
-		_exit(EXIT_FAILURE);
+		fclose(*orig_stdout);
+		fclose(*orig_stdin);
+		return -1;
 	}
 
 	/* Duplicate tty_fd to stdin, stdout, stderr */
 	if (dup2(tty_fd, STDIN_FILENO) == -1) {
 		perror("dup2 stdin");
-		_exit(EXIT_FAILURE);
+		close(tty_fd);
+		fclose(*orig_stdout);
+		fclose(*orig_stdin);
+		return -1;
 	}
 	if (dup2(tty_fd, STDOUT_FILENO) == -1) {
 		perror("dup2 stdout");
-		_exit(EXIT_FAILURE);
+		close(tty_fd);
+		fclose(*orig_stdout);
+		fclose(*orig_stdin);
+		return -1;
 	}
 	if (dup2(tty_fd, STDERR_FILENO) == -1) {
 		perror("dup2 stderr");
-		_exit(EXIT_FAILURE);
+		close(tty_fd);
+		fclose(*orig_stdout);
+		fclose(*orig_stdin);
+		return -1;
 	}
 
 	/* Close tty_fd if it's not stdin, stdout, or stderr */
@@ -296,7 +327,7 @@ redirect_stdio_to_tty(void)
 		close(tty_fd);
 	}
 
-	return orig_stdout;
+	return 0;
 }
 
 static int
@@ -886,6 +917,40 @@ read_file_contents(const char *filename)
 	return contents;
 }
 
+static char *
+read_fp_contents(FILE *fp)
+{
+	char *contents = NULL;
+	size_t total_size = 0;
+	size_t buffer_size = 8192;
+	char buffer[8192];
+	size_t nread;
+
+	while ((nread = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+		char *new_contents = realloc(contents, total_size + nread + 1);
+		if (!new_contents) {
+			perror("realloc");
+			free(contents);
+			return NULL;
+		}
+		contents = new_contents;
+		memcpy(contents + total_size, buffer, nread);
+		total_size += nread;
+	}
+
+	if (ferror(stdin)) {
+		perror("fread");
+		free(contents);
+		return NULL;
+	}
+
+	if (contents) {
+		contents[total_size] = '\0'; /* Null-terminate */
+	}
+
+	return contents;
+}
+
 static int
 jot_invoke_fullscreen_editor(int count, int key)
 {
@@ -912,14 +977,14 @@ jot_invoke_fullscreen_editor(int count, int key)
 	/* Construct the path */
 	strcpy(temp_filename, tmpdir);
 	strcat(temp_filename, template);
-	
+
 	/* Create a temporary file */
 	int fd = mkstemp(temp_filename);
 	if (fd == -1) {
 		perror("mkstemp");
 		exit(EXIT_FAILURE);
 	}
-	
+
 	/* Write the current Readline buffer to the temporary file */
 	FILE *fp = fdopen(fd, "w");
 	if (!fp) {
@@ -1032,17 +1097,26 @@ int
 main(int argc, char **argv)
 {
 	int opt_e = 0;       /* Whether the -e option is specified */
+	int opt_p = 0;       /* Whether the --pipe option is specified */
 	int opt;
 	char *input = NULL;
 	FILE *file_write = NULL;
 	FILE *orig_stdout = stdout;
+	FILE *orig_stdin = stdin;
 	int exit_status = EXIT_SUCCESS;
 	char *banner = DEFAULT_BANNER;
 
 	save_terminal_settings();
 
-	/* Parse command-line options using getopt */
-	while ((opt = getopt(argc, argv, "eb:")) != -1) {
+	static struct option long_options[] = {
+		{"pipe", no_argument, 0, 'p'},
+		{"empty", no_argument, 0, 'e'},
+		{"banner", required_argument, 0, 'b'},
+		{0, 0, 0, 0}
+	};
+
+	/* Parse command-line options using getopt_long */
+	while ((opt = getopt_long(argc, argv, "eb:p", long_options, NULL)) != -1) {
 		switch (opt) {
 		case 'e':
 			opt_e = 1;
@@ -1050,8 +1124,11 @@ main(int argc, char **argv)
 		case 'b':
 			banner = optarg;
 			break;
+		case 'p':
+			opt_p = 1;
+			break;
 		default:
-			fprintf(stderr, "Usage: %s [-e] [-b banner] [filename]\n", argv[0]);
+			fprintf(stderr, "Usage: %s [-e] [-p] [-b banner] [filename]\n", argv[0]);
 			exit_status = EXIT_FAILURE;
 			goto exit_program;
 		}
@@ -1064,19 +1141,27 @@ main(int argc, char **argv)
 		filename = NULL;
 	}
 
+	if (opt_p && filename != NULL) {
+		fprintf(stderr, "Error: --pipe cannot be used with a filename\n");
+		exit_status = EXIT_FAILURE;
+		goto exit_program;
+	}
+
 	/* For conditional processing of inputrc */
 	rl_readline_name = PROGRAM_NAME;
 
 
- 	/*
- 	 * Open /dev/tty for input and output
- 	 * Only open /dev/tty for input and output when necessary
- 	 * That is, when not editing a named file and stdin or
- 	 * stdout is not a terminal
- 	 */
-	if (filename == NULL &&
-	    (!isatty(fileno(stdin)) || !isatty(fileno(stdout)))) {
-		orig_stdout = redirect_stdio_to_tty();
+	/*
+	 * Open /dev/tty for input and output
+	 * Only open /dev/tty for input and output when necessary
+	 * That is, when not editing a named file and stdin or
+	 * stdout is not a terminal
+	 */
+	if (opt_p || (filename == NULL && !isatty(fileno(stdout)))) {
+		if (redirect_stdio_to_tty(&orig_stdout, &orig_stdin) != 0) {
+			exit_status = EXIT_FAILURE;
+			goto exit_program;
+		}
 	}
 
 	/*
@@ -1204,19 +1289,24 @@ main(int argc, char **argv)
 	bind_func_in_vi_movement_keymap("\r", jot_move_to_first_nonblank_next_line);
 
 
-	if (filename) {
-		/* If -e is not specified, read the file contents */
-		if (!opt_e) {
-			file_contents = read_file_contents(filename);
-			if (file_contents == NULL) {
-				if (errno != ENOENT) {
-					/* An error occured while reading the file */
-					exit_status = EXIT_FAILURE;
-					goto exit_program;
-				}
-				/* If file does not exist, proceed with empty buffer */
+	if (opt_p) {
+		/* Read buffer contents from stdin */
+		file_contents = read_fp_contents(orig_stdin);
+		if (file_contents == NULL) {
+			perror("Failed to read from stdin");
+			exit_status = EXIT_FAILURE;
+			goto exit_program;
+		}
+	} else if (filename && !opt_e) {
+		/* Read the file contents */
+		file_contents = read_file_contents(filename);
+		if (file_contents == NULL) {
+			if (errno != ENOENT) {
+				/* An error occurred while reading the file */
+				exit_status = EXIT_FAILURE;
+				goto exit_program;
 			}
-			/* Set initial content in input buffer using startup hook */
+			/* If file does not exist, proceed with empty buffer */
 		}
 	}
 
@@ -1231,7 +1321,7 @@ main(int argc, char **argv)
 	/* Prompt for input */
 	if ((input = readline("")) != NULL) {
 		/* Write the input to file or stdout */
-		if (filename) {
+		if (filename != NULL) {
 			/* Open file for writing (will create if it doesn't exist) */
 			file_write = fopen(filename, "w");
 			if (!file_write) {
@@ -1267,6 +1357,10 @@ exit_program:
 	free(file_contents);
 	if (file_write)
 		fclose(file_write);
+	if (orig_stdout != stdout)
+		fclose(orig_stdout);
+	if (orig_stdin != stdin)
+		fclose(orig_stdin);
 
 	return exit_status;
 }

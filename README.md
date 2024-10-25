@@ -89,15 +89,21 @@ Start `jot` with an empty buffer, ignoring the existing file contents:
 jot -e file.txt
 ```
 
+Use `jot` in a pipeline to edit the output of `some_command` and save to `output.txt`:
+
+```bash
+some_command | jot -p > output.txt
+```
+
 ### Options
 
-- `-e`: Start with an empty buffer when editing a file. Existing file contents are ignored and overwritten upon saving.
-- `-b banner`: Display the specified `banner` message before starting. Useful for providing instructions or context.
+- `-e`, `--empty`: Start with an empty buffer when editing a file. Existing file contents are ignored and overwritten upon saving.
+- `-b banner`, `--banner banner`: Display the specified `banner` message before starting. Useful for providing instructions or context.
+- `-p`, `--pipe`: Read input from standard input instead of from a file. This allows `jot` to operate within shell pipelines by reading input directly from standard input.
 
 ## Key Bindings
 
 `jot` defines and binds custom Readline functions to enhance multiline editing. The following functions are available, with their default key bindings shown in parentheses. Most default Readline bindings are available unless specified in the "Unbound Default Functions" section.
-
 
 ### Exiting the Editor
 
@@ -152,7 +158,6 @@ In Vi mode, `jot` defines and binds custom functions to replicate common Vi comm
 - **`jot-invoke-fullscreen-editor` (`v`)**: Invokes a full-screen editor to edit the current text. The editor used is determined by the `JOT_EDITOR` environment variable; if not set, it defaults to `vi`.
 
 
-
 To enable Vi mode, add the following to your `~/.inputrc`:
 
 ```bash
@@ -164,9 +169,6 @@ $endif
 ## Configuration
 
 You can customize `jot`'s key bindings and behavior using the Readline initialization file (`inputrc`), applying settings specifically for `jot` with conditional blocks.
-
-Customize `jot`'s key bindings and behavior using the Readline initialization file (`inputrc`), applying settings specifically for `jot` with conditional blocks.
-
 
 For example, to rebind the accept line key to `Ctrl+X`, add:
 
@@ -220,9 +222,8 @@ This version of `jot` is experimental and is intended to assess the tool's utili
 
 The idea for `jot` comes from an early implementation of multiline editing with Readline by [Colm MacCárthaigh](https://github.com/colmmacc) in the `c-hey` tool.
 
-This version of `jot` was written using GPT-4 by Periklis Akritidis, through iterative code reviews on a single-file implementation.
+This version of `jot` was written using an LLM by Periklis Akritidis, through iterative code reviews on a single-file implementation.
 
 ## Reporting Bugs
 
 Report bugs to [jot-bugs@akritidis.org](mailto:jot-bugs@akritidis.org).
-
