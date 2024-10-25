@@ -1210,7 +1210,7 @@ main(int argc, char **argv)
 	rl_add_defun("jot-vi-delete-current-line", jot_vi_delete_current_line, -1);
 	rl_add_defun("jot-vi-delete-to-end-of-line", jot_vi_delete_to_end_of_line, -1);
 
-	rl_bind_key('\t', rl_insert); /* disable auto-completion */
+	bind_func_in_insert_maps("\t", rl_insert); /* disable auto-completion */
 
 	/*
 	 * Unbind functions that can mess up formatting
